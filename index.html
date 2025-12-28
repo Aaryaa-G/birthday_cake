@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Birthday Cake 🎂</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      #mainTitle {
+        font-size: 32px;
+        font-family: 'Pixelify Sans', sans-serif;
+        margin-bottom: 8px;
+      }
+
+      #subTitle {
+        font-size: 18px;
+        font-family: 'Pixelify Sans', sans-serif;
+        color: #555;
+      }
+
+      /* Override all candle colors to pink #eb63b2 */
+      .green-candle {
+        filter: hue-rotate(290deg) saturate(1.5) brightness(1.1);
+      }
+
+      .green-candle.blown {
+        filter: hue-rotate(290deg) saturate(1.5) brightness(1.1);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div id="birthdayText"></div>
+      <div class="cake-container">
+        <div class="cake" id="cake"></div>
+      </div>
+    </div>
+
+    <script>
+      // Read URL params
+      const params = new URLSearchParams(window.location.search);
+      const name = params.get("name") || "Friend";
+      let candleCount = parseInt(params.get("candles")) || 8;
+      candleCount = Math.min(Math.max(candleCount, 1), 30);
+
+      const birthdayText = document.getElementById("birthdayText");
+      birthdayText.innerHTML = `
+        <div id="mainTitle">Happy Birthday, ${name}!</div>
+        <div id="subTitle">Make a wish and blow candles.</div>
+      `;
+
+      const cake = document.getElementById("cake");
+
+      const colors = [
+        "green-candle",
+        "purple-candle",
+        "blue-candle",
+        "yellow-candle",
+      ];
+      const CAKE_VISUAL_WIDTH = 35;
+
+      function createCandles(count) {
+        cake.innerHTML = "";
+        const CANDLE_VISUAL_WIDTH = 2;
+        const availableWidth = CAKE_VISUAL_WIDTH;
+        const candlesPerRow = 4; // Changed back to 4 candles per row
+        const rowCount = Math.ceil(count / candlesPerRow);
+        const shiftAmount = 4;
+
+        for (let i = 0; i < count; i++) {
+          const candle = document.createElement("div");
+          candle.classList.add("candle");
+          // Use green-candle as base, will override color with CSS
+          candle.classList.add("green-candle");
+
+          const row = Math.floor(i / candlesPerRow);
+          const col = i % candlesPerRow;
+          const totalCandlesInRow = Math.min(
+            candlesPerRow,
+            count - row * candlesPerRow
+          );
+          const rowSpacing = availableWidth / (totalCandlesInRow + 1);
+
+          const leftBase = rowSpacing * (col + 1) - CANDLE_VISUAL_WIDTH / 2 + 5;
+          const rowShift = row % 2 === 0 ? 0 : shiftAmount;
+
+          candle.style.position = "absolute";
+          candle.style.top = `${10 + row * 3}px`;
+          candle.style.left = `${leftBase - rowShift + 4}px`;
+
+          cake.appendChild(candle);
+        }
+      }
+
+      createCandles(candleCount);
+
+      // === Microphone / Blow Detection ===
+      async function startMicDetection() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          const audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(stream);
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 512;
+
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+          let blown = false;
+
+          function detectBlow() {
+            analyser.getByteFrequencyData(dataArray);
+
+            // Calculate overall volume/amplitude
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+
+            // Focus on mid-to-high frequencies where breath noise occurs
+            let breathFreqSum = 0;
+            const startIdx = Math.floor(dataArray.length * 0.3); // Skip very low frequencies
+            const endIdx = Math.floor(dataArray.length * 0.8);   // Skip very high frequencies
+
+            for (let i = startIdx; i < endIdx; i++) {
+              breathFreqSum += dataArray[i];
+            }
+            const breathAverage = breathFreqSum / (endIdx - startIdx);
+
+            // Detect blowing: need moderate overall volume AND high breath frequency content
+            const VOLUME_THRESHOLD = 30;  // Minimum overall volume
+            const BREATH_THRESHOLD = 40;   // Minimum breath frequency content
+
+            if (average > VOLUME_THRESHOLD && breathAverage > BREATH_THRESHOLD && !blown) {
+              blown = true;
+              blowOutCandles();
+            }
+
+            requestAnimationFrame(detectBlow);
+          }
+
+          detectBlow();
+        } catch (err) {
+          console.error("Mic access error:", err);
+        }
+      }
+
+      function blowOutCandles() {
+        const candles = document.querySelectorAll(".candle");
+        candles.forEach((candle) => {
+          const delay = Math.random() * 1000;
+          setTimeout(() => {
+            colors.forEach((color) => {
+              if (candle.classList.contains(color)) {
+                candle.classList.add("blown");
+              }
+            });
+          }, delay);
+        });
+
+        // Update subTitle after short delay
+        setTimeout(() => {
+          const subTitle = document.getElementById("subTitle");
+          subTitle.textContent = `Yayy! Wishing you the happiest birthday ever!! 🎉`;
+        }, 1200);
+      }
+
+      startMicDetection();
+    </script>
+  </body>
+</html>
